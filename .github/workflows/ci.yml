@@ -59,8 +59,8 @@ jobs:
           ${{ runner.os }}-go-
     
     - name: Install dependencies
+      working-directory: backend
       run: |
-        cd backend
         go mod download
         go mod verify
     
@@ -77,8 +77,8 @@ jobs:
         working-directory: backend
     
     - name: Run tests
+      working-directory: backend
       run: |
-        cd backend
         go test -v -race -coverprofile=coverage.out ./...
         go tool cover -html=coverage.out -o coverage.html
       env:
@@ -98,8 +98,8 @@ jobs:
         name: codecov-umbrella
     
     - name: Run integration tests
+      working-directory: backend
       run: |
-        cd backend
         go test -v -tags=integration ./...
       env:
         DB_HOST: localhost
@@ -110,14 +110,26 @@ jobs:
         REDIS_HOST: localhost
         REDIS_PORT: 6379
 
+  list-services:
+    runs-on: ubuntu-latest
+    outputs:
+      services: ${{ steps.list.outputs.services }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - id: list
+        name: List services
+        run: echo "services=$(ls -d backend/docker/* | xargs -n 1 basename | jq -c -R -s 'split("\n") | map(select(length > 0))')" >> $GITHUB_OUTPUT
+
+
   build:
-    needs: test
+    needs: [test, list-services]
     runs-on: ubuntu-latest
     if: github.event_name == 'push'
     
     strategy:
       matrix:
-        service: [product-service, cart-service, order-service, delivery-service, notification-service, api-gateway]
+        service: ${{ fromJson(needs.list-services.outputs.services) }}
     
     steps:
     - name: Checkout code
@@ -169,21 +181,21 @@ jobs:
       with:
         version: 'latest'
     
-    - name: Configure kubectl
-      run: |
-        echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > kubeconfig
-        export KUBECONFIG=kubeconfig
-    
     - name: Deploy to Kubernetes
+      env:
+        KUBE_CONFIG_DATA: ${{ secrets.KUBE_CONFIG }}
       run: |
+        echo "$KUBE_CONFIG_DATA" | base64 -d > kubeconfig
         export KUBECONFIG=kubeconfig
-        kubectl apply -f backend/k8s/
-        kubectl rollout status deployment/product-service
-        kubectl rollout status deployment/cart-service
-        kubectl rollout status deployment/order-service
-        kubectl rollout status deployment/delivery-service
-        kubectl rollout status deployment/notification-service
-        kubectl rollout status deployment/api-gateway
+        
+        for service_file in backend/k8s/*.yaml; do
+          kubectl apply -f $service_file
+          service_name=$(basename -s .yaml $service_file)
+          kubectl rollout status deployment/$service_name
+          
+          echo "Waiting for service $service_name to be healthy..."
+          kubectl wait --for=condition=ready pod -l app=$service_name --timeout=300s
+        done
 
   load-test:
     needs: deploy
@@ -202,9 +214,8 @@ jobs:
         sudo apt-get install k6
     
     - name: Run load tests
-      run: |
-        cd backend
-        k6 run scripts/load-test.js
+      working-directory: backend
+      run: k6 run scripts/load-test.js
       env:
         K6_OUT: json=results.json
     
