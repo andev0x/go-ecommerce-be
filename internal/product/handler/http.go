@@ -31,7 +31,7 @@ func NewHTTPHandler(service service.ProductService, logger *logrus.Logger) *HTTP
 // RegisterRoutes registers all HTTP routes
 func (h *HTTPHandler) RegisterRoutes(router *gin.Engine) {
 	api := router.Group("/api/v1")
-	
+
 	// Product routes
 	products := api.Group("/products")
 	{
@@ -42,7 +42,7 @@ func (h *HTTPHandler) RegisterRoutes(router *gin.Engine) {
 		products.PUT("/:id", h.UpdateProduct)
 		products.DELETE("/:id", h.DeleteProduct)
 	}
-	
+
 	// Category routes
 	categories := api.Group("/categories")
 	{
@@ -52,7 +52,7 @@ func (h *HTTPHandler) RegisterRoutes(router *gin.Engine) {
 		categories.PUT("/:id", h.UpdateCategory)
 		categories.DELETE("/:id", h.DeleteCategory)
 	}
-	
+
 	// Health check
 	router.GET("/health", h.HealthCheck)
 	router.GET("/ready", h.ReadinessCheck)
@@ -66,13 +66,13 @@ func (h *HTTPHandler) CreateProduct(c *gin.Context) {
 		response.Error(c, http.StatusBadRequest, "Invalid request body", err)
 		return
 	}
-	
+
 	product, err := h.service.CreateProduct(c.Request.Context(), &req)
 	if err != nil {
 		h.handleError(c, err)
 		return
 	}
-	
+
 	response.Success(c, http.StatusCreated, "Product created successfully", product)
 }
 
@@ -84,13 +84,13 @@ func (h *HTTPHandler) GetProduct(c *gin.Context) {
 		response.Error(c, http.StatusBadRequest, "Invalid product ID", err)
 		return
 	}
-	
+
 	product, err := h.service.GetProduct(c.Request.Context(), id)
 	if err != nil {
 		h.handleError(c, err)
 		return
 	}
-	
+
 	response.Success(c, http.StatusOK, "Product retrieved successfully", product)
 }
 
@@ -102,20 +102,20 @@ func (h *HTTPHandler) UpdateProduct(c *gin.Context) {
 		response.Error(c, http.StatusBadRequest, "Invalid product ID", err)
 		return
 	}
-	
+
 	var req domain.UpdateProductRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		h.logger.WithError(err).Error("Invalid request body")
 		response.Error(c, http.StatusBadRequest, "Invalid request body", err)
 		return
 	}
-	
+
 	product, err := h.service.UpdateProduct(c.Request.Context(), id, &req)
 	if err != nil {
 		h.handleError(c, err)
 		return
 	}
-	
+
 	response.Success(c, http.StatusOK, "Product updated successfully", product)
 }
 
@@ -127,73 +127,73 @@ func (h *HTTPHandler) DeleteProduct(c *gin.Context) {
 		response.Error(c, http.StatusBadRequest, "Invalid product ID", err)
 		return
 	}
-	
+
 	if err := h.service.DeleteProduct(c.Request.Context(), id); err != nil {
 		h.handleError(c, err)
 		return
 	}
-	
+
 	response.Success(c, http.StatusOK, "Product deleted successfully", nil)
 }
 
 // ListProducts handles product listing with filters
 func (h *HTTPHandler) ListProducts(c *gin.Context) {
 	filters := &domain.ProductFilters{}
-	
+
 	// Parse query parameters
 	if categoryID := c.Query("category_id"); categoryID != "" {
 		if id, err := uuid.Parse(categoryID); err == nil {
 			filters.CategoryID = &id
 		}
 	}
-	
+
 	if minPrice := c.Query("min_price"); minPrice != "" {
 		if price, err := strconv.ParseFloat(minPrice, 64); err == nil {
 			filters.MinPrice = &price
 		}
 	}
-	
+
 	if maxPrice := c.Query("max_price"); maxPrice != "" {
 		if price, err := strconv.ParseFloat(maxPrice, 64); err == nil {
 			filters.MaxPrice = &price
 		}
 	}
-	
+
 	filters.Search = c.Query("search")
-	
+
 	if isActive := c.Query("is_active"); isActive != "" {
 		if active, err := strconv.ParseBool(isActive); err == nil {
 			filters.IsActive = &active
 		}
 	}
-	
+
 	if inStock := c.Query("in_stock"); inStock != "" {
 		if stock, err := strconv.ParseBool(inStock); err == nil {
 			filters.InStock = &stock
 		}
 	}
-	
+
 	if limit := c.Query("limit"); limit != "" {
 		if l, err := strconv.Atoi(limit); err == nil {
 			filters.Limit = l
 		}
 	}
-	
+
 	if offset := c.Query("offset"); offset != "" {
 		if o, err := strconv.Atoi(offset); err == nil {
 			filters.Offset = o
 		}
 	}
-	
+
 	filters.SortBy = c.DefaultQuery("sort_by", "created_at")
 	filters.SortOrder = c.DefaultQuery("sort_order", "desc")
-	
+
 	productList, err := h.service.ListProducts(c.Request.Context(), filters)
 	if err != nil {
 		h.handleError(c, err)
 		return
 	}
-	
+
 	response.Success(c, http.StatusOK, "Products retrieved successfully", productList)
 }
 
@@ -204,34 +204,34 @@ func (h *HTTPHandler) SearchProducts(c *gin.Context) {
 		response.Error(c, http.StatusBadRequest, "Search query is required", nil)
 		return
 	}
-	
+
 	filters := &domain.ProductFilters{}
-	
+
 	// Parse additional filters
 	if categoryID := c.Query("category_id"); categoryID != "" {
 		if id, err := uuid.Parse(categoryID); err == nil {
 			filters.CategoryID = &id
 		}
 	}
-	
+
 	if limit := c.Query("limit"); limit != "" {
 		if l, err := strconv.Atoi(limit); err == nil {
 			filters.Limit = l
 		}
 	}
-	
+
 	if offset := c.Query("offset"); offset != "" {
 		if o, err := strconv.Atoi(offset); err == nil {
 			filters.Offset = o
 		}
 	}
-	
+
 	productList, err := h.service.SearchProducts(c.Request.Context(), query, filters)
 	if err != nil {
 		h.handleError(c, err)
 		return
 	}
-	
+
 	response.Success(c, http.StatusOK, "Search results retrieved successfully", productList)
 }
 
@@ -243,13 +243,13 @@ func (h *HTTPHandler) CreateCategory(c *gin.Context) {
 		response.Error(c, http.StatusBadRequest, "Invalid request body", err)
 		return
 	}
-	
+
 	category, err := h.service.CreateCategory(c.Request.Context(), &req)
 	if err != nil {
 		h.handleError(c, err)
 		return
 	}
-	
+
 	response.Success(c, http.StatusCreated, "Category created successfully", category)
 }
 
@@ -261,13 +261,13 @@ func (h *HTTPHandler) GetCategory(c *gin.Context) {
 		response.Error(c, http.StatusBadRequest, "Invalid category ID", err)
 		return
 	}
-	
+
 	category, err := h.service.GetCategory(c.Request.Context(), id)
 	if err != nil {
 		h.handleError(c, err)
 		return
 	}
-	
+
 	response.Success(c, http.StatusOK, "Category retrieved successfully", category)
 }
 
@@ -279,20 +279,20 @@ func (h *HTTPHandler) UpdateCategory(c *gin.Context) {
 		response.Error(c, http.StatusBadRequest, "Invalid category ID", err)
 		return
 	}
-	
+
 	var req domain.UpdateCategoryRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		h.logger.WithError(err).Error("Invalid request body")
 		response.Error(c, http.StatusBadRequest, "Invalid request body", err)
 		return
 	}
-	
+
 	category, err := h.service.UpdateCategory(c.Request.Context(), id, &req)
 	if err != nil {
 		h.handleError(c, err)
 		return
 	}
-	
+
 	response.Success(c, http.StatusOK, "Category updated successfully", category)
 }
 
@@ -304,12 +304,12 @@ func (h *HTTPHandler) DeleteCategory(c *gin.Context) {
 		response.Error(c, http.StatusBadRequest, "Invalid category ID", err)
 		return
 	}
-	
+
 	if err := h.service.DeleteCategory(c.Request.Context(), id); err != nil {
 		h.handleError(c, err)
 		return
 	}
-	
+
 	response.Success(c, http.StatusOK, "Category deleted successfully", nil)
 }
 
@@ -320,7 +320,7 @@ func (h *HTTPHandler) ListCategories(c *gin.Context) {
 		h.handleError(c, err)
 		return
 	}
-	
+
 	response.Success(c, http.StatusOK, "Categories retrieved successfully", categories)
 }
 

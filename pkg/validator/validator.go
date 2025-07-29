@@ -15,7 +15,7 @@ type Validator struct {
 // New creates a new validator instance
 func New() *Validator {
 	validate := validator.New()
-	
+
 	// Register custom tag name function
 	validate.RegisterTagNameFunc(func(fld reflect.StructField) string {
 		name := strings.SplitN(fld.Tag.Get("json"), ",", 2)[0]
@@ -24,7 +24,7 @@ func New() *Validator {
 		}
 		return name
 	})
-	
+
 	return &Validator{validate: validate}
 }
 

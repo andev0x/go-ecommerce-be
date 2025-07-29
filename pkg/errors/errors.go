@@ -7,12 +7,12 @@ import (
 
 // Error types
 var (
-	ErrNotFound    = errors.New("resource not found")
-	ErrValidation  = errors.New("validation error")
-	ErrConflict    = errors.New("resource conflict")
-	ErrInternal    = errors.New("internal error")
+	ErrNotFound     = errors.New("resource not found")
+	ErrValidation   = errors.New("validation error")
+	ErrConflict     = errors.New("resource conflict")
+	ErrInternal     = errors.New("internal error")
 	ErrUnauthorized = errors.New("unauthorized")
-	ErrForbidden   = errors.New("forbidden")
+	ErrForbidden    = errors.New("forbidden")
 )
 
 // AppError represents an application error with additional context

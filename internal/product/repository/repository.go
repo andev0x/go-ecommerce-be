@@ -25,14 +25,14 @@ type ProductRepository interface {
 	Update(ctx context.Context, product *domain.Product) error
 	Delete(ctx context.Context, id uuid.UUID) error
 	List(ctx context.Context, filters *domain.ProductFilters) ([]domain.Product, int64, error)
-	
+
 	CreateCategory(ctx context.Context, category *domain.Category) error
 	GetCategory(ctx context.Context, id uuid.UUID) (*domain.Category, error)
 	GetCategoryByName(ctx context.Context, name string) (*domain.Category, error)
 	UpdateCategory(ctx context.Context, category *domain.Category) error
 	DeleteCategory(ctx context.Context, id uuid.UUID) error
 	ListCategories(ctx context.Context) ([]domain.Category, error)
-	
+
 	InvalidateProductCache(ctx context.Context) error
 }
 
@@ -68,24 +68,24 @@ func (r *productRepository) GetByID(ctx context.Context, id uuid.UUID) (*domain.
 			return &product, nil
 		}
 	}
-	
+
 	var product domain.Product
 	err = r.db.WithContext(ctx).
 		Preload("Category").
 		First(&product, "id = ?", id).Error
-	
+
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, customErrors.NewNotFoundError("Product not found", err)
 		}
 		return nil, fmt.Errorf("failed to get product: %w", err)
 	}
-	
+
 	// Cache the result
 	if productJSON, err := json.Marshal(product); err == nil {
 		r.redis.Set(ctx, cacheKey, productJSON, 10*time.Minute)
 	}
-	
+
 	return &product, nil
 }
 
@@ -94,14 +94,14 @@ func (r *productRepository) GetBySKU(ctx context.Context, sku string) (*domain.P
 	err := r.db.WithContext(ctx).
 		Preload("Category").
 		First(&product, "sku = ?", sku).Error
-	
+
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, customErrors.NewNotFoundError("Product not found", err)
 		}
 		return nil, fmt.Errorf("failed to get product by SKU: %w", err)
 	}
-	
+
 	return &product, nil
 }
 
@@ -109,11 +109,11 @@ func (r *productRepository) Update(ctx context.Context, product *domain.Product)
 	if err := r.db.WithContext(ctx).Save(product).Error; err != nil {
 		return fmt.Errorf("failed to update product: %w", err)
 	}
-	
+
 	// Invalidate cache
 	cacheKey := fmt.Sprintf("product:%s", product.ID.String())
 	r.redis.Del(ctx, cacheKey)
-	
+
 	return nil
 }
 
@@ -121,11 +121,11 @@ func (r *productRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	if err := r.db.WithContext(ctx).Delete(&domain.Product{}, "id = ?", id).Error; err != nil {
 		return fmt.Errorf("failed to delete product: %w", err)
 	}
-	
+
 	// Invalidate cache
 	cacheKey := fmt.Sprintf("product:%s", id.String())
 	r.redis.Del(ctx, cacheKey)
-	
+
 	return nil
 }
 
@@ -144,9 +144,9 @@ func (r *productRepository) List(ctx context.Context, filters *domain.ProductFil
 			}
 		}
 	}
-	
+
 	query := r.db.WithContext(ctx).Model(&domain.Product{}).Preload("Category")
-	
+
 	// Apply filters
 	if filters.CategoryID != nil {
 		query = query.Where("category_id = ?", *filters.CategoryID)
@@ -167,17 +167,17 @@ func (r *productRepository) List(ctx context.Context, filters *domain.ProductFil
 	if filters.InStock != nil && *filters.InStock {
 		query = query.Where("stock > 0")
 	}
-	
+
 	// Count total
 	var total int64
 	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, fmt.Errorf("failed to count products: %w", err)
 	}
-	
+
 	// Apply sorting
 	orderClause := fmt.Sprintf("%s %s", filters.SortBy, strings.ToUpper(filters.SortOrder))
 	query = query.Order(orderClause)
-	
+
 	// Apply pagination
 	if filters.Offset > 0 {
 		query = query.Offset(filters.Offset)
@@ -185,12 +185,12 @@ func (r *productRepository) List(ctx context.Context, filters *domain.ProductFil
 	if filters.Limit > 0 {
 		query = query.Limit(filters.Limit)
 	}
-	
+
 	var products []domain.Product
 	if err := query.Find(&products).Error; err != nil {
 		return nil, 0, fmt.Errorf("failed to list products: %w", err)
 	}
-	
+
 	// Cache the result for common queries
 	if cacheKey != "" {
 		result := struct {
@@ -204,7 +204,7 @@ func (r *productRepository) List(ctx context.Context, filters *domain.ProductFil
 			r.redis.Set(ctx, cacheKey, resultJSON, 5*time.Minute)
 		}
 	}
-	
+
 	return products, total, nil
 }
 
@@ -221,28 +221,28 @@ func (r *productRepository) GetCategory(ctx context.Context, id uuid.UUID) (*dom
 		Preload("Parent").
 		Preload("Children").
 		First(&category, "id = ?", id).Error
-	
+
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, customErrors.NewNotFoundError("Category not found", err)
 		}
 		return nil, fmt.Errorf("failed to get category: %w", err)
 	}
-	
+
 	return &category, nil
 }
 
 func (r *productRepository) GetCategoryByName(ctx context.Context, name string) (*domain.Category, error) {
 	var category domain.Category
 	err := r.db.WithContext(ctx).First(&category, "name = ?", name).Error
-	
+
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, customErrors.NewNotFoundError("Category not found", err)
 		}
 		return nil, fmt.Errorf("failed to get category by name: %w", err)
 	}
-	
+
 	return &category, nil
 }
 
@@ -268,11 +268,11 @@ func (r *productRepository) ListCategories(ctx context.Context) ([]domain.Catego
 		Where("is_active = ?", true).
 		Order("name ASC").
 		Find(&categories).Error
-	
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to list categories: %w", err)
 	}
-	
+
 	return categories, nil
 }
 
@@ -282,21 +282,21 @@ func (r *productRepository) InvalidateProductCache(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	
+
 	if len(keys) > 0 {
 		return r.redis.Del(ctx, keys...).Err()
 	}
-	
+
 	// Also delete list cache keys
 	listKeys, err := r.redis.Keys(ctx, "products:*").Result()
 	if err != nil {
 		return err
 	}
-	
+
 	if len(listKeys) > 0 {
 		return r.redis.Del(ctx, listKeys...).Err()
 	}
-	
+
 	return nil
 }
 
@@ -305,7 +305,7 @@ func (r *productRepository) buildCacheKey(filters *domain.ProductFilters) string
 	if filters.Search != "" || filters.MinPrice != nil || filters.MaxPrice != nil {
 		return ""
 	}
-	
+
 	key := "products:list"
 	if filters.CategoryID != nil {
 		key += fmt.Sprintf(":cat_%s", filters.CategoryID.String())
@@ -318,6 +318,6 @@ func (r *productRepository) buildCacheKey(filters *domain.ProductFilters) string
 	}
 	key += fmt.Sprintf(":limit_%d:offset_%d", filters.Limit, filters.Offset)
 	key += fmt.Sprintf(":sort_%s_%s", filters.SortBy, filters.SortOrder)
-	
+
 	return key
 }

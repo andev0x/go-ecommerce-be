@@ -20,7 +20,7 @@ type ProductService interface {
 	DeleteProduct(ctx context.Context, id uuid.UUID) error
 	ListProducts(ctx context.Context, filters *domain.ProductFilters) (*domain.ProductList, error)
 	SearchProducts(ctx context.Context, query string, filters *domain.ProductFilters) (*domain.ProductList, error)
-	
+
 	CreateCategory(ctx context.Context, req *domain.CreateCategoryRequest) (*domain.Category, error)
 	GetCategory(ctx context.Context, id uuid.UUID) (*domain.Category, error)
 	UpdateCategory(ctx context.Context, id uuid.UUID, req *domain.UpdateCategoryRequest) (*domain.Category, error)
@@ -49,7 +49,7 @@ func (s *productService) CreateProduct(ctx context.Context, req *domain.CreatePr
 		s.logger.WithError(err).Error("Invalid create product request")
 		return nil, errors.NewValidationError("Invalid request", err)
 	}
-	
+
 	// Check if SKU already exists
 	existing, err := s.repo.GetBySKU(ctx, req.SKU)
 	if err != nil && !errors.IsNotFound(err) {
@@ -59,7 +59,7 @@ func (s *productService) CreateProduct(ctx context.Context, req *domain.CreatePr
 	if existing != nil {
 		return nil, errors.NewConflictError("SKU already exists", nil)
 	}
-	
+
 	// Verify category exists
 	if _, err := s.repo.GetCategory(ctx, req.CategoryID); err != nil {
 		if errors.IsNotFound(err) {
@@ -67,7 +67,7 @@ func (s *productService) CreateProduct(ctx context.Context, req *domain.CreatePr
 		}
 		return nil, errors.NewInternalError("Failed to verify category", err)
 	}
-	
+
 	product := &domain.Product{
 		Name:        req.Name,
 		Description: req.Description,
@@ -78,15 +78,18 @@ func (s *productService) CreateProduct(ctx context.Context, req *domain.CreatePr
 		SKU:         req.SKU,
 		IsActive:    true,
 	}
-	
+
 	if err := s.repo.Create(ctx, product); err != nil {
 		s.logger.WithError(err).Error("Failed to create product")
 		return nil, errors.NewInternalError("Failed to create product", err)
 	}
-	
+
 	// Invalidate cache
-	s.repo.InvalidateProductCache(ctx)
-	
+	if err := s.repo.InvalidateProductCache(ctx); err != nil {
+		s.logger.WithError(err).Error("Failed to invalidate product cache")
+		return nil, errors.NewInternalError("Failed to invalidate cache", err)
+	}
+
 	s.logger.WithField("product_id", product.ID).Info("Product created successfully")
 	return product, nil
 }
@@ -100,7 +103,7 @@ func (s *productService) GetProduct(ctx context.Context, id uuid.UUID) (*domain.
 		s.logger.WithError(err).Error("Failed to get product")
 		return nil, errors.NewInternalError("Failed to get product", err)
 	}
-	
+
 	return product, nil
 }
 
@@ -110,7 +113,7 @@ func (s *productService) UpdateProduct(ctx context.Context, id uuid.UUID, req *d
 		s.logger.WithError(err).Error("Invalid update product request")
 		return nil, errors.NewValidationError("Invalid request", err)
 	}
-	
+
 	// Get existing product
 	product, err := s.repo.GetByID(ctx, id)
 	if err != nil {
@@ -119,7 +122,7 @@ func (s *productService) UpdateProduct(ctx context.Context, id uuid.UUID, req *d
 		}
 		return nil, errors.NewInternalError("Failed to get product", err)
 	}
-	
+
 	// Check SKU uniqueness if being updated
 	if req.SKU != nil && *req.SKU != product.SKU {
 		existing, err := s.repo.GetBySKU(ctx, *req.SKU)
@@ -130,7 +133,7 @@ func (s *productService) UpdateProduct(ctx context.Context, id uuid.UUID, req *d
 			return nil, errors.NewConflictError("SKU already exists", nil)
 		}
 	}
-	
+
 	// Verify category exists if being updated
 	if req.CategoryID != nil {
 		if _, err := s.repo.GetCategory(ctx, *req.CategoryID); err != nil {
@@ -140,7 +143,7 @@ func (s *productService) UpdateProduct(ctx context.Context, id uuid.UUID, req *d
 			return nil, errors.NewInternalError("Failed to verify category", err)
 		}
 	}
-	
+
 	// Update fields
 	if req.Name != nil {
 		product.Name = *req.Name
@@ -166,15 +169,18 @@ func (s *productService) UpdateProduct(ctx context.Context, id uuid.UUID, req *d
 	if req.IsActive != nil {
 		product.IsActive = *req.IsActive
 	}
-	
+
 	if err := s.repo.Update(ctx, product); err != nil {
 		s.logger.WithError(err).Error("Failed to update product")
 		return nil, errors.NewInternalError("Failed to update product", err)
 	}
-	
+
 	// Invalidate cache
-	s.repo.InvalidateProductCache(ctx)
-	
+	if err := s.repo.InvalidateProductCache(ctx); err != nil {
+		s.logger.WithError(err).Error("Failed to invalidate product cache")
+		return nil, errors.NewInternalError("Failed to invalidate cache", err)
+	}
+
 	s.logger.WithField("product_id", product.ID).Info("Product updated successfully")
 	return product, nil
 }
@@ -187,15 +193,18 @@ func (s *productService) DeleteProduct(ctx context.Context, id uuid.UUID) error 
 		}
 		return errors.NewInternalError("Failed to get product", err)
 	}
-	
+
 	if err := s.repo.Delete(ctx, id); err != nil {
 		s.logger.WithError(err).Error("Failed to delete product")
 		return errors.NewInternalError("Failed to delete product", err)
 	}
-	
+
 	// Invalidate cache
-	s.repo.InvalidateProductCache(ctx)
-	
+	if err := s.repo.InvalidateProductCache(ctx); err != nil {
+		s.logger.WithError(err).Error("Failed to invalidate product cache")
+		return errors.NewInternalError("Failed to invalidate cache", err)
+	}
+
 	s.logger.WithField("product_id", id).Info("Product deleted successfully")
 	return nil
 }
@@ -214,13 +223,13 @@ func (s *productService) ListProducts(ctx context.Context, filters *domain.Produ
 	if filters.SortOrder == "" {
 		filters.SortOrder = "desc"
 	}
-	
+
 	products, total, err := s.repo.List(ctx, filters)
 	if err != nil {
 		s.logger.WithError(err).Error("Failed to list products")
 		return nil, errors.NewInternalError("Failed to list products", err)
 	}
-	
+
 	return &domain.ProductList{
 		Products: products,
 		Total:    total,
@@ -234,10 +243,10 @@ func (s *productService) SearchProducts(ctx context.Context, query string, filte
 	if query == "" {
 		return s.ListProducts(ctx, filters)
 	}
-	
+
 	// Set search query in filters
 	filters.Search = query
-	
+
 	return s.ListProducts(ctx, filters)
 }
 
@@ -247,7 +256,7 @@ func (s *productService) CreateCategory(ctx context.Context, req *domain.CreateC
 		s.logger.WithError(err).Error("Invalid create category request")
 		return nil, errors.NewValidationError("Invalid request", err)
 	}
-	
+
 	// Check if name already exists
 	existing, err := s.repo.GetCategoryByName(ctx, req.Name)
 	if err != nil && !errors.IsNotFound(err) {
@@ -256,7 +265,7 @@ func (s *productService) CreateCategory(ctx context.Context, req *domain.CreateC
 	if existing != nil {
 		return nil, errors.NewConflictError("Category name already exists", nil)
 	}
-	
+
 	// Verify parent category exists if specified
 	if req.ParentID != nil {
 		if _, err := s.repo.GetCategory(ctx, *req.ParentID); err != nil {
@@ -266,19 +275,19 @@ func (s *productService) CreateCategory(ctx context.Context, req *domain.CreateC
 			return nil, errors.NewInternalError("Failed to verify parent category", err)
 		}
 	}
-	
+
 	category := &domain.Category{
 		Name:        req.Name,
 		Description: req.Description,
 		ParentID:    req.ParentID,
 		IsActive:    true,
 	}
-	
+
 	if err := s.repo.CreateCategory(ctx, category); err != nil {
 		s.logger.WithError(err).Error("Failed to create category")
 		return nil, errors.NewInternalError("Failed to create category", err)
 	}
-	
+
 	s.logger.WithField("category_id", category.ID).Info("Category created successfully")
 	return category, nil
 }
@@ -292,7 +301,7 @@ func (s *productService) GetCategory(ctx context.Context, id uuid.UUID) (*domain
 		s.logger.WithError(err).Error("Failed to get category")
 		return nil, errors.NewInternalError("Failed to get category", err)
 	}
-	
+
 	return category, nil
 }
 
@@ -302,7 +311,7 @@ func (s *productService) UpdateCategory(ctx context.Context, id uuid.UUID, req *
 		s.logger.WithError(err).Error("Invalid update category request")
 		return nil, errors.NewValidationError("Invalid request", err)
 	}
-	
+
 	// Get existing category
 	category, err := s.repo.GetCategory(ctx, id)
 	if err != nil {
@@ -311,7 +320,7 @@ func (s *productService) UpdateCategory(ctx context.Context, id uuid.UUID, req *
 		}
 		return nil, errors.NewInternalError("Failed to get category", err)
 	}
-	
+
 	// Check name uniqueness if being updated
 	if req.Name != nil && *req.Name != category.Name {
 		existing, err := s.repo.GetCategoryByName(ctx, *req.Name)
@@ -322,7 +331,7 @@ func (s *productService) UpdateCategory(ctx context.Context, id uuid.UUID, req *
 			return nil, errors.NewConflictError("Category name already exists", nil)
 		}
 	}
-	
+
 	// Verify parent category exists if being updated
 	if req.ParentID != nil {
 		if _, err := s.repo.GetCategory(ctx, *req.ParentID); err != nil {
@@ -332,7 +341,7 @@ func (s *productService) UpdateCategory(ctx context.Context, id uuid.UUID, req *
 			return nil, errors.NewInternalError("Failed to verify parent category", err)
 		}
 	}
-	
+
 	// Update fields
 	if req.Name != nil {
 		category.Name = *req.Name
@@ -346,12 +355,12 @@ func (s *productService) UpdateCategory(ctx context.Context, id uuid.UUID, req *
 	if req.IsActive != nil {
 		category.IsActive = *req.IsActive
 	}
-	
+
 	if err := s.repo.UpdateCategory(ctx, category); err != nil {
 		s.logger.WithError(err).Error("Failed to update category")
 		return nil, errors.NewInternalError("Failed to update category", err)
 	}
-	
+
 	s.logger.WithField("category_id", category.ID).Info("Category updated successfully")
 	return category, nil
 }
@@ -364,7 +373,7 @@ func (s *productService) DeleteCategory(ctx context.Context, id uuid.UUID) error
 		}
 		return errors.NewInternalError("Failed to get category", err)
 	}
-	
+
 	// Check if category has products
 	filters := &domain.ProductFilters{CategoryID: &id, Limit: 1}
 	products, _, err := s.repo.List(ctx, filters)
@@ -374,12 +383,12 @@ func (s *productService) DeleteCategory(ctx context.Context, id uuid.UUID) error
 	if len(products) > 0 {
 		return errors.NewConflictError("Cannot delete category with products", nil)
 	}
-	
+
 	if err := s.repo.DeleteCategory(ctx, id); err != nil {
 		s.logger.WithError(err).Error("Failed to delete category")
 		return errors.NewInternalError("Failed to delete category", err)
 	}
-	
+
 	s.logger.WithField("category_id", id).Info("Category deleted successfully")
 	return nil
 }
@@ -390,6 +399,6 @@ func (s *productService) ListCategories(ctx context.Context) ([]domain.Category,
 		s.logger.WithError(err).Error("Failed to list categories")
 		return nil, errors.NewInternalError("Failed to list categories", err)
 	}
-	
+
 	return categories, nil
 }

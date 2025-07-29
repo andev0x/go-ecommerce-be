@@ -9,15 +9,15 @@ import (
 // NewLogger creates a new structured logger
 func NewLogger() *logrus.Logger {
 	logger := logrus.New()
-	
+
 	// Set output to stdout
 	logger.SetOutput(os.Stdout)
-	
+
 	// Set log format to JSON for production
 	logger.SetFormatter(&logrus.JSONFormatter{
 		TimestampFormat: "2006-01-02 15:04:05",
 	})
-	
+
 	// Set log level based on environment
 	level := os.Getenv("LOG_LEVEL")
 	switch level {
@@ -32,7 +32,7 @@ func NewLogger() *logrus.Logger {
 	default:
 		logger.SetLevel(logrus.InfoLevel)
 	}
-	
+
 	return logger
 }
 

@@ -68,17 +68,17 @@ type ProductFilters struct {
 	InStock    *bool      `json:"in_stock,omitempty"`
 	Limit      int        `json:"limit,omitempty"`
 	Offset     int        `json:"offset,omitempty"`
-	SortBy     string     `json:"sort_by,omitempty"` // name, price, created_at
+	SortBy     string     `json:"sort_by,omitempty"`    // name, price, created_at
 	SortOrder  string     `json:"sort_order,omitempty"` // asc, desc
 }
 
 // ProductList represents a paginated list of products
 type ProductList struct {
-	Products   []Product `json:"products"`
-	Total      int64     `json:"total"`
-	Limit      int       `json:"limit"`
-	Offset     int       `json:"offset"`
-	HasMore    bool      `json:"has_more"`
+	Products []Product `json:"products"`
+	Total    int64     `json:"total"`
+	Limit    int       `json:"limit"`
+	Offset   int       `json:"offset"`
+	HasMore  bool      `json:"has_more"`
 }
 
 // CreateCategoryRequest represents the request to create a category
